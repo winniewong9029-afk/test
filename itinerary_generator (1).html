@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行程表產生器 (Itinerary Generator)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Importing M PLUS Rounded 1c Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* 1 line = 24px (based on 16px font-size and 1.5 line-height). 5 lines = 120px */
+            --line-height: 24px; 
+        }
+
+        body {
+            font-family: 'M PLUS Rounded 1c', 'Varela Round', 'Arial Rounded MT Bold', sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            font-size: 16px;
+            line-height: var(--line-height);
+        }
+
+        /* Desktop A4 layout */
+        .a4-container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 2rem auto;
+            background: white;
+            padding: 20mm;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            position: relative;
+            border-radius: 8px;
+        }
+
+        /* Mobile responsive adjustments */
+        @media screen and (max-width: 210mm) {
+            .a4-container {
+                width: 100%;
+                min-height: 100vh;
+                margin: 0;
+                padding: 5vw;
+                box-shadow: none;
+                border-radius: 0;
+            }
+        }
+
+        /* Input styling */
+        .doc-input {
+            border: none;
+            border-bottom: 1px dashed #cbd5e1;
+            border-radius: 0;
+            padding: 4px 0;
+            background-color: transparent;
+            font-family: inherit;
+            font-size: inherit;
+            color: inherit;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        
+        .doc-input:focus {
+            outline: none;
+            border-bottom: 1px solid #3b82f6; 
+            background-color: #f8fafc;
+        }
+
+        /* Exact 5-line gaps (120px) */
+        .gap-5-lines {
+            margin-bottom: 120px;
+        }
+
+        input[type="date"] {
+            font-family: inherit;
+            cursor: text;
+        }
+
+        /* Print view optimizations */
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm;
+            }
+            
+            body {
+                background-color: white;
+            }
+
+            .a4-container {
+                width: 100%;
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                border-radius: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .doc-input {
+                border-bottom: none !important;
+                padding: 0 !important;
+                background-color: transparent !important;
+            }
+
+            ::placeholder {
+                color: transparent !important;
+            }
+
+            input[type="date"]::-webkit-calendar-picker-indicator {
+                display: none;
+                opacity: 0;
+            }
+            input[type="date"]::-webkit-inner-spin-button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="fixed top-4 right-4 z-50 no-print">
+        <button onclick="window.print()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2 rounded-full shadow-lg transition flex items-center gap-2 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            列印 PDF
+        </button>
+    </div>
+
+    <div class="a4-container">
+        
+        <div class="flex flex-col gap-2">
+            <!-- Addressee -->
+            <div class="flex items-center">
+                <span class="w-12 font-bold">致</span>
+                <span class="mr-2 font-bold">:</span>
+                <input type="text" value="AA" class="doc-input w-48 font-bold">
+            </div>
+            
+            <!-- Date & 5-Line Gap to Day 1 -->
+            <div class="flex items-center gap-5-lines">
+                <span class="w-12 font-bold">日期</span>
+                <span class="mr-2 font-bold">:</span>
+                <input type="date" id="base-date" class="doc-input w-48 no-print" onchange="updateDates()">
+                <span id="print-date-display" class="hidden print:inline-block font-bold"></span>
+            </div>
+        </div>
+
+        <div id="itinerary-days-container">
+            
+            <!-- Day 1 -->
+            <div class="gap-5-lines" id="day-1-container">
+                <h2 id="day-1-title" class="font-bold mb-2 min-h-[24px] underline underline-offset-4"></h2>
+                <div id="day-1-rows" class="flex flex-col gap-2">
+                    <div class="flex flex-row items-center gap-4 itinerary-row group">
+                        <!-- Changed to text input to allow "早上", "10:00", etc. -->
+                        <input type="text" placeholder="時間/文字" class="doc-input w-36 text-left font-medium pl-0 ml-0">
+                        <input type="text" placeholder="行程內容 (例: 長江三峽旅行)" class="doc-input flex-1 text-left">
+                        
+                        <!-- Add/Remove row buttons (Hidden on Print, skips TAB focus) -->
+                        <button tabindex="-1" onclick="addRow(this)" class="no-print text-indigo-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition" title="新增一行">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                        </button>
+                        <button tabindex="-1" onclick="removeRow(this)" class="no-print text-red-400 hover:text-red-700 opacity-0 group-hover:opacity-100 transition" title="刪除此行">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Day 2 -->
+            <div class="gap-5-lines" id="day-2-container">
+                <h2 id="day-2-title" class="font-bold mb-2 min-h-[24px] underline underline-offset-4"></h2>
+                <div id="day-2-rows" class="flex flex-col gap-2">
+                    <div class="flex flex-row items-center gap-4 itinerary-row group">
+                        <input type="text" placeholder="時間/文字" class="doc-input w-36 text-left font-medium pl-0 ml-0">
+                        <input type="text" placeholder="行程內容 (例: 長江三峽旅行)" class="doc-input flex-1 text-left">
+                        <button tabindex="-1" onclick="addRow(this)" class="no-print text-indigo-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition" title="新增一行"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg></button>
+                        <button tabindex="-1" onclick="removeRow(this)" class="no-print text-red-400 hover:text-red-700 opacity-0 group-hover:opacity-100 transition" title="刪除此行"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Day 3 -->
+            <div id="day-3-container" class="relative">
+                <h2 id="day-3-title" class="font-bold mb-2 min-h-[24px] underline underline-offset-4"></h2>
+                <div id="day-3-rows" class="flex flex-col gap-2">
+                    <div class="flex flex-row items-center gap-4 itinerary-row group">
+                        <input type="text" placeholder="時間/文字" class="doc-input w-36 text-left font-medium pl-0 ml-0">
+                        <input type="text" placeholder="行程內容 (例: 長江三峽旅行)" class="doc-input flex-1 text-left">
+                        <button tabindex="-1" onclick="addRow(this)" class="no-print text-indigo-400 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition" title="新增一行"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg></button>
+                        <button tabindex="-1" onclick="removeRow(this)" class="no-print text-red-400 hover:text-red-700 opacity-0 group-hover:opacity-100 transition" title="刪除此行"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="no-print mt-12 text-center relative z-10 mb-8">
+            <button id="toggle-reminders-btn" onclick="toggleReminders()" class="border border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-6 py-2 rounded-full text-sm font-bold transition shadow-sm">
+                顯示溫馨提示
+            </button>
+        </div>
+
+        <!-- Reminders Container: Space set to exactly 5 lines (120px) from Day 3 via margin-top -->
+        <div id="reminders-section" class="hidden flex flex-col mt-[120px] items-start text-left w-full">
+            <h2 class="mb-2 underline text-left w-full" style="font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif; font-weight: 700; letter-spacing: 1px;">溫馨提示</h2>
+            <div class="flex flex-col gap-2 w-full">
+                <!-- Reminder Date (Line 1, Underlined, Left-aligned) -->
+                <input type="text" id="reminder-date-input" placeholder="2026年10月11日(星期日)" class="doc-input w-full font-bold underline text-left">
+                <!-- User input line (Line 2, Not Underlined, Left-aligned) -->
+                <input type="text" placeholder="請輸入提示內容... (例: 取船)" class="doc-input w-full text-left" style="text-decoration: none;">
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+        function formatChineseDate(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            const day = dayNames[dateObj.getDay()];
+            return `${y}年${m}月${d}日(${day})`;
+        }
+
+        function formatBaseDate(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}年${m}月${d}日`;
+        }
+
+        function updateDates() {
+            const baseDateInput = document.getElementById('base-date');
+            const printDisplay = document.getElementById('print-date-display');
+            const reminderDateInput = document.getElementById('reminder-date-input');
+            
+            if (!baseDateInput.value) {
+                printDisplay.innerText = "";
+                return;
+            }
+
+            const baseDate = new Date(baseDateInput.value);
+            printDisplay.innerText = formatBaseDate(baseDate);
+
+            let lastDateStr = '';
+            for (let i = 1; i <= 3; i++) {
+                const nextDate = new Date(baseDate);
+                nextDate.setDate(baseDate.getDate() + i);
+                
+                const formattedDate = formatChineseDate(nextDate);
+                document.getElementById(`day-${i}-title`).innerText = formattedDate;
+                
+                if (i === 2) {
+                    lastDateStr = formattedDate;
+                }
+            }
+
+            if (!reminderDateInput.value) {
+                reminderDateInput.value = lastDateStr;
+            }
+        }
+
+        // Add a new row below the current row
+        function addRow(buttonElement) {
+            const currentRow = buttonElement.closest('.itinerary-row');
+            const container = currentRow.parentNode;
+            const newRow = currentRow.cloneNode(true);
+            
+            // Clear the inputs in the cloned row
+            const inputs = newRow.querySelectorAll('input');
+            inputs.forEach(input => input.value = '');
+            
+            // Insert it right after the current row
+            container.insertBefore(newRow, currentRow.nextSibling);
+            
+            // Auto-focus the first input of the new row
+            inputs[0].focus();
+        }
+
+        // Remove the selected row
+        function removeRow(buttonElement) {
+            const currentRow = buttonElement.closest('.itinerary-row');
+            const container = currentRow.parentNode;
+            
+            // Ensure at least one row remains
+            if (container.children.length > 1) {
+                currentRow.remove();
+            }
+        }
+
+        function toggleReminders() {
+            const section = document.getElementById('reminders-section');
+            const btn = document.getElementById('toggle-reminders-btn');
+            
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                btn.innerText = '隱藏溫馨提示';
+                btn.classList.add('bg-gray-200');
+            } else {
+                section.classList.add('hidden');
+                btn.innerText = '顯示溫馨提示';
+                btn.classList.remove('bg-gray-200');
+            }
+        }
+
+        window.onload = function() {
+            // Setup for smooth printing experience
+            window.addEventListener('beforeprint', () => {
+                const dateInput = document.getElementById('base-date');
+                const printDisplay = document.getElementById('print-date-display');
+                if(dateInput.value) {
+                    dateInput.classList.add('hidden'); 
+                    printDisplay.classList.remove('hidden');
+                }
+            });
+            
+            window.addEventListener('afterprint', () => {
+                const dateInput = document.getElementById('base-date');
+                const printDisplay = document.getElementById('print-date-display');
+                dateInput.classList.remove('hidden');
+                printDisplay.classList.add('hidden');
+            });
+        };
+    </script>
+</body>
+</html>
